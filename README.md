@@ -2,8 +2,6 @@
 
 Regression analysis of 2023 ACS PUMS microdata testing whether Native Hawaiian status is associated with lower wages, and whether education pays off equally across that status.
 
-Group project (5 members), Seattle University MSBA. **My contribution: results interpretation and analysis write-up** — translating the regression output into the substantive findings and policy implications below.
-
 ## Research questions
 
 1. Does being Native Hawaiian correlate with income?
@@ -54,4 +52,4 @@ R (tidyverse, stargazer, lmtest, vtable, ggplot2), Quarto
 
 ## Author
 
-Savgun Kaur ([savscripts](https://github.com/savscripts)) — group project, Seattle University MSBA
+Savgun Kaur ([savscripts](https://github.com/savscripts))
