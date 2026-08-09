@@ -1,0 +1,347 @@
+---
+title: "Hawaii Wages - Data Exploration"
+author: "Group 5"
+format: docx
+editor: visual
+---
+
+## Library import
+
+```{r}
+#| echo: false
+library(rio)
+library(vtable)
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+library(lmtest)
+library(knitr)
+library(scales)
+library(stargazer)
+```
+
+## Data import
+
+```{r}
+hawaii <- import('psam_p15.csv') ## WAGP (wage), RACNH (native hawaiian or not), SCHL (educational attainmt - discrete)
+
+## data starts with 15,019 observations
+```
+
+## Variables:
+
+WAGP - wage, continuous
+
+RACNH - Native Hawaiian (1) or not (0), binary
+
+SCHL - Educational attainment, Discrete (bb - 24). Bachelor's = 21
+
+AGEP - Age
+
+SCH - school enrollment (b-3). b = NA, 1 = No, 2-3 = Yes
+
+SEX - 1- Male, 2- Female
+
+WKWN - Weeks Worked During Past 12 Months
+
+WKHP - Usual Hours Worked per Week in Past 12 Months
+
+INDP - Industry Codes
+
+```{r}
+vtable(hawaii)
+```
+
+## Data Cleaning
+
+Filtering out nulls, putting titles to industry codes.
+
+```{r}
+hawaii <- hawaii %>%
+  filter(!is.na(SCHL)) %>%
+  filter(!is.na(RACNH)) %>%
+  filter(!is.na(AGEP)) %>%
+  filter(!is.na(WKWN)) %>%
+  filter(!is.na(WKHP)) %>%
+  filter(!is.na(WAGP) & WAGP > 0) %>%
+  filter(!is.na(SEX)) %>%
+  filter(!is.na(INDP)) %>%
+  mutate(Industry = case_when(
+    INDP >= 170 & INDP <= 290 ~ "Agriculture",
+    INDP >= 370 & INDP <= 490 ~ "Mining",
+    INDP >= 570 & INDP <= 690 ~ "Utilities",
+    INDP == 770 ~ "Construction",
+    INDP >= 1070 & INDP <= 3990 ~ "Manufacturing",
+    INDP >= 4070 & INDP <= 4590 ~ "Wholesale_Trade",
+    INDP >= 4670 & INDP <= 5791 ~ "Retail_Trade",
+    INDP >= 6070 & INDP <= 6390 ~ "Transportation",
+    INDP >= 6470 & INDP <= 6781 ~ "Information",
+    INDP >= 6871 & INDP <= 7190 ~ "Finance_RealEstate",
+    INDP >= 7270 & INDP <= 7790 ~ "Professional",
+    INDP >= 7860 & INDP <= 7890 ~ "Education",
+    INDP >= 7970 & INDP <= 8290 ~ "Medical_Healthcare",
+    INDP >= 8370 & INDP <= 8470 ~ "Social_Assistance",
+    INDP >= 8560 & INDP <= 8690 ~ "Arts_Entertainment",
+    INDP >= 8770 & INDP <= 9290 ~ "Service",
+    INDP >= 9370 & INDP <= 9590 ~ "Public_Administration",
+    INDP >= 9670 & INDP <= 9870 ~ "Military",
+    INDP == 9920 ~ "Unemployed",
+    TRUE ~ "Other"
+  )) ## adding industry for histogram
+
+## Observations reduce to 7,355 after cleaning
+```
+
+Renaming columns to make them easier to understand. Creating industry columns to be binary variables.
+
+```{r}
+hawaii_rename <- hawaii %>%
+    rename(`Native_Hawaiian` = RACNH,
+         `Wage`= WAGP,
+         `Age` = AGEP,
+         `Weeks_Worked` = WKWN,
+         `Usual_Weekly_Hours` = WKHP) %>%
+  mutate(`Bachelors` = case_when(
+    SCHL >= 21 ~ 1,
+    TRUE ~ 0
+  )) %>%
+  mutate(Male = case_when(
+    SEX == 1 ~ 1,
+    TRUE ~ 0
+  )) %>%
+  mutate(`Agriculture`= case_when(
+    INDP >= 170 & INDP <= 290 ~ 1,
+    TRUE ~ 0)) %>%
+  mutate(`Mining` = case_when(
+    INDP >= 370 & INDP <= 490 ~ 1,
+    TRUE ~ 0)) %>%
+  mutate(`Utilities` = case_when(
+    INDP >= 570 & INDP <= 690 ~ 1,
+    TRUE ~ 0)) %>%
+  mutate(`Construction` = case_when(
+    INDP == 770 ~ 1,
+    TRUE ~ 0)) %>%
+  mutate(`Manufacturing` = case_when(
+    INDP >= 1070 & INDP <= 3990 ~ 1,
+    TRUE ~ 0)) %>%
+  mutate(`Wholesale_Trade` = case_when(
+    INDP >= 4070 & INDP <= 4590  ~ 1,
+    TRUE ~ 0)) %>%
+  mutate(`Retail_Trade` = case_when(
+   INDP >= 4670 & INDP <= 5791 ~ 1,
+    TRUE ~ 0)) %>%
+  mutate(`Transportation` = case_when(
+    INDP >= 6070 & INDP <= 6390 ~ 1,
+    TRUE ~ 0)) %>%
+  mutate(`Information` = case_when(
+    INDP >= 6470 & INDP <= 6781 ~ 1,
+    TRUE ~ 0)) %>%
+  mutate(`Finance_RealEstate` = case_when(
+    INDP >= 6871 & INDP <= 7190 ~ 1,
+    TRUE ~ 0)) %>%
+  mutate(`Professional` = case_when(
+    INDP >= 7270 & INDP <= 7790 ~ 1,
+    TRUE ~ 0)) %>%
+  mutate(`Education` = case_when(
+    INDP >= 7860 & INDP <= 7890 ~ 1,
+    TRUE ~ 0)) %>%
+  mutate(`Medical_Healthcare` = case_when(
+    INDP >= 7970 & INDP <= 8290 ~ 1,
+    TRUE ~ 0)) %>%
+  mutate(`Social_Assistance` = case_when(
+    INDP >= 8370 & INDP <= 8470   ~ 1,
+    TRUE ~ 0)) %>%
+  mutate(`Arts_Entertainment` = case_when(
+   INDP >= 8560 & INDP <= 8690 ~ 1,
+    TRUE ~ 0)) %>%
+  mutate(`Service` = case_when(
+    INDP >= 8770 & INDP <= 9290 ~ 1,
+    TRUE ~ 0)) %>%
+  mutate(`Public_Administration` = case_when(
+    INDP >= 9370 & INDP <= 9590 ~ 1,
+    TRUE ~ 0)) %>%
+  mutate(`Military` = case_when(
+    INDP >= 9670 & INDP <= 9870 ~ 1,
+    TRUE ~ 0)) %>%
+  mutate(`Unemployed` = case_when(
+    INDP == 9920 ~ 1,
+    TRUE ~ 0))
+
+HI_data <- hawaii_rename %>% select (Wage, `Native_Hawaiian`, Bachelors, Age, Male, `Weeks_Worked`, `Usual_Weekly_Hours`,`Agriculture`, `Mining`, `Utilities`, `Construction`, `Manufacturing`, `Wholesale_Trade`, `Retail_Trade`, `Transportation`, `Information`, `Finance_RealEstate`, `Professional`, `Education`, `Medical_Healthcare`, `Social_Assistance`, `Arts_Entertainment`, `Service`, `Public_Administration`, `Military`, `Unemployed`)
+```
+
+## Exploratory Data Analysis
+
+Summary Statistics
+
+```{r}
+stargazer(HI_data, type = "text", title = "Table 1: Descriptive Statistics", digits = 1, out = "table1.txt")
+```
+
+Variable Table - includes class, integer values
+
+```{r}
+vtable(HI_data)
+```
+
+### Graphs for variables of interest
+
+```{r}
+ggplot(HI_data, aes(x = Native_Hawaiian)) +
+  geom_bar(fill = "blue", color = "black", alpha = 0.7) +
+  labs(title = "Count of Non-Native Hawaiians vs Native Hawaiians Sampled", x = "", y = "Count") +
+  scale_y_continuous(labels = comma) +
+  scale_x_continuous(breaks = seq(0, 1, by = 1),
+                     labels = c("Non-Native Hawaiians","Native Hawaiians")) +
+  theme_minimal()
+```
+
+```{r}
+ggplot(HI_data, aes(x = Bachelors)) +
+  geom_bar(fill = "blue", color = "black", alpha = 0.7) +
+  labs(title = "Count of Sampled Hawaiians by Educational Attainment", x = "", y = "Count") +
+  scale_y_continuous(labels = comma) +
+  scale_x_continuous(breaks = seq(0, 1, by = 1),
+                     labels = c("High School Diploma and Below","Bachelor's Degree and Above")) +
+  theme_minimal()
+```
+
+```{r}
+ggplot(HI_data, aes(x = Age)) +
+  geom_bar(fill = "blue", color = "black", alpha = 0.7) +
+  labs(title = "Count of Sampled Hawaiians by Age", x = "Age in years", y = "Count") +
+  theme_minimal() +
+  scale_y_continuous(labels = comma)
+```
+
+```{r}
+ggplot(HI_data, aes(x = Age, y = Wage)) +
+  geom_point() +
+  labs(title = "Scatterplot of Age vs Wage", 
+       x = "Age in years", 
+       y = "Wage ($)") +
+   scale_y_continuous(labels = comma)
+```
+
+There's a parabolic shape to the age data, potentially use quadratic form.
+
+```{r}
+ggplot(HI_data, aes(x = Male)) +
+  geom_bar(fill = "blue", color = "black", alpha = 0.7) +
+  labs(title = "Count of Sampled Hawaiians by Sex", x = "", y = "Count") +
+  scale_y_continuous(labels = comma) +
+  scale_x_continuous(breaks = seq(0, 1, by = 1),
+                     labels = c("Female","Male")) +
+  theme_minimal()
+```
+
+```{r}
+ggplot(HI_data, aes(x = Weeks_Worked)) +
+  geom_bar(fill = "blue", color = "black", alpha = 0.7) +
+  labs(title = "Histogram of Weeks Worked in the Past 12 Months", x = "Weeks Worked", y = "Count") +
+  scale_y_continuous(labels = comma) +
+  theme_minimal()
+```
+
+```{r}
+ggplot(HI_data, aes(x = Weeks_Worked, y = Wage)) +
+  geom_point() +
+  labs(title = "Scatterplot of Weeks Worked in Past 12 Months vs Wage", 
+       x = "Weeks Worked", 
+       y = "Wage ($)") +
+   scale_y_continuous(labels = comma)
+```
+
+```{r}
+ggplot(HI_data, aes(x = Usual_Weekly_Hours)) +
+  geom_bar(fill = "blue", color = "black", alpha = 0.7) +
+  labs(title = "Histogram of Usual Weekly Hours Worked in the Past 12 Months", x = "Hours per Week", y = "Count") +
+  scale_y_continuous(labels = comma) +
+  theme_minimal()
+```
+
+```{r}
+ggplot(HI_data, aes(x = Usual_Weekly_Hours, y = Wage)) +
+  geom_point() +
+  labs(title = "Scatterplot of Usual Hours Worked per Week in Past 12 Months vs Wage", 
+       x = "Hours per Week", 
+       y = "Wage ($)") +
+   scale_y_continuous(labels = comma)
+```
+
+There's a parabolic shape to the hours per week data, potentially use quadratic form.
+
+```{r}
+ggplot(hawaii, aes(x = Industry)) +
+  geom_bar(fill = "blue", color = "black", alpha = 0.7) +
+  labs(title = "Count of Sampled People by Industry", x = "", y = "Count") +
+  theme_minimal() +
+  scale_y_continuous(labels = comma) +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+```
+
+```{r}
+## correlation matrix w/o industry
+cor_matrix <- cor(HI_data %>% select (Wage, `Native_Hawaiian`, Bachelors, Age, Male, `Weeks_Worked`, `Usual_Weekly_Hours`))
+kable(round(cor_matrix, 2))
+```
+
+```{r}
+## correlation matrix w/ industry
+cor_matrix <- cor(HI_data)
+kable(round(cor_matrix, 2))
+```
+
+## Models
+
+```{r}
+model1 <- lm(log(Wage)~ `Native_Hawaiian` + `Bachelors` + `Native_Hawaiian`*`Bachelors` + Age + I(Age^2), data = HI_data)
+summary(model1)
+
+bp_test <- bptest(model1)
+print(bp_test)
+```
+
+```{r}
+model2 <-lm(log(Wage)~ `Native_Hawaiian` + `Bachelors` + `Native_Hawaiian`*`Bachelors` + Age + I(Age^2) + Male + `Weeks_Worked` + `Usual_Weekly_Hours`+ I(Usual_Weekly_Hours^2), data = HI_data)
+summary(model2)
+bp_test <- bptest(model2)
+print(bp_test)
+```
+
+```{r}
+model3 <-lm(log(Wage)~ `Native_Hawaiian` + `Bachelors` + `Native_Hawaiian`*`Bachelors` + Age + I(Age^2) + Male + `Weeks_Worked` + `Usual_Weekly_Hours`+ I(Usual_Weekly_Hours^2) + `Agriculture`+ `Mining`+ `Utilities`+ `Construction`+ `Manufacturing`+ `Wholesale_Trade`+ `Retail_Trade`+ `Information`+ `Finance_RealEstate`+ `Professional`+ `Education`+ `Medical_Healthcare`+ `Social_Assistance`+ `Arts_Entertainment`+ `Service`+ `Public_Administration`+ `Military`, data = HI_data) # Transportation is the reference category
+summary(model3)
+bp_test <- bptest(model3)
+print(bp_test)
+```
+
+### Other models run (not used)
+
+```{r}
+model4 <- lm(log(Wage)~ `Native_Hawaiian` + `Bachelors` + `Native_Hawaiian`*`Bachelors` + Age + I(Age^2) + MAR, data = hawaii_rename)
+summary(model4)
+#Marital Status only increases R2 by .5
+```
+
+```{r}
+model5 <- lm(log(Wage)~ `Native_Hawaiian` + `Bachelors` + `Native_Hawaiian`*`Bachelors` + Age + I(Age^2) + ENG, data = hawaii_rename)
+summary(model5)
+#English ability decreases adj R2
+```
+
+```{r}
+model6 <- lm(log(Wage)~ `Native_Hawaiian` + `Bachelors` + `Native_Hawaiian`*`Bachelors` + Age + I(Age^2) + DIS, data = hawaii_rename)
+summary(model6)
+#Disability only increases adj R2 by .3
+```
+
+## Regression Model Comparisons
+
+```{r}
+stargazer(model1, model2, model3, type = "text",
+          title = "Table 2: Regression Results",
+          dep.var.labels = "Dependent Variable: Log of Wages",
+          omit.stat = c("f", "ser"),
+          digits = 2)
+```
